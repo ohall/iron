@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import type { ExerciseDefinition, Program, SessionDefinition } from "../types";
 
 interface LogDraft {
-  performedSets: string;
+  performedWeight: string;
+  performedSetsCount: number;
+  performedReps: string;
   effort: number;
   notes: string;
 }
@@ -26,11 +28,13 @@ export function ProgramView({ program, onBack, onStart, onEdit, onSaveLog }: Pro
 
   const sessions = useMemo(() => firstWeek?.sessions ?? [], [firstWeek]);
 
-  function getDraft(sessionKey: string, exerciseName: string) {
-    const key = `${sessionKey}:${exerciseName}`;
+  function getDraft(sessionKey: string, exercise: ExerciseDefinition) {
+    const key = `${sessionKey}:${exercise.name}`;
     return (
       drafts[key] ?? {
-        performedSets: "",
+        performedWeight: exercise.target.weight,
+        performedSetsCount: exercise.target.sets,
+        performedReps: exercise.target.reps,
         effort: 7,
         notes: "",
       }
@@ -42,10 +46,16 @@ export function ProgramView({ program, onBack, onStart, onEdit, onSaveLog }: Pro
     const key = `${sessionKey}:${exercise.name}`;
     setSavingKey(key);
     try {
-      await onSaveLog(session, exercise, drafts[key] ?? { performedSets: "", effort: 7, notes: "" });
+      await onSaveLog(session, exercise, getDraft(sessionKey, exercise));
       setDrafts((current) => ({
         ...current,
-        [key]: { performedSets: "", effort: 7, notes: "" },
+        [key]: {
+          performedWeight: exercise.target.weight,
+          performedSetsCount: exercise.target.sets,
+          performedReps: exercise.target.reps,
+          effort: 7,
+          notes: "",
+        },
       }));
     } finally {
       setSavingKey(null);
@@ -91,6 +101,15 @@ export function ProgramView({ program, onBack, onStart, onEdit, onSaveLog }: Pro
         </ul>
       </section>
 
+      <section className="panel">
+        <div className="section-label">Progressive Overload</div>
+        <ul className="riot-list">
+          {program.structure.overload_scheme.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      </section>
+
       {sessions.map((session) => {
         const sessionKey = `${program.id}:${session.dayLabel}:${session.title}`;
         return (
@@ -100,7 +119,7 @@ export function ProgramView({ program, onBack, onStart, onEdit, onSaveLog }: Pro
             <p className="session-focus">{session.focus}</p>
             <div className="exercise-stack">
               {session.exercises.map((exercise) => {
-                const draft = getDraft(sessionKey, exercise.name);
+                const draft = getDraft(sessionKey, exercise);
                 const key = `${sessionKey}:${exercise.name}`;
                 return (
                   <article className="exercise-card" key={exercise.name}>
@@ -114,22 +133,52 @@ export function ProgramView({ program, onBack, onStart, onEdit, onSaveLog }: Pro
                       </div>
                     </div>
                     <p className="muted-copy">
-                      Rest {exercise.target.restSeconds}s
+                      Weight {exercise.target.weight} • Rest {exercise.target.restSeconds}s
                       {exercise.target.intensity ? ` • ${exercise.target.intensity}` : ""}
                     </p>
                     {exercise.target.notes ? <p className="muted-copy">{exercise.target.notes}</p> : null}
                     <div className="log-grid">
                       <label>
-                        Results
+                        Weight
                         <input
-                          value={draft.performedSets}
+                          value={draft.performedWeight}
                           onChange={(event) =>
                             setDrafts((current) => ({
                               ...current,
-                              [key]: { ...draft, performedSets: event.target.value },
+                              [key]: { ...draft, performedWeight: event.target.value },
                             }))
                           }
-                          placeholder="185x5, 185x5, 185x4"
+                          placeholder={exercise.target.weight}
+                        />
+                      </label>
+                      <label>
+                        Sets
+                        <input
+                          type="number"
+                          min={1}
+                          value={draft.performedSetsCount}
+                          onChange={(event) =>
+                            setDrafts((current) => ({
+                              ...current,
+                              [key]: {
+                                ...draft,
+                                performedSetsCount: Number(event.target.value),
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        Reps
+                        <input
+                          value={draft.performedReps}
+                          onChange={(event) =>
+                            setDrafts((current) => ({
+                              ...current,
+                              [key]: { ...draft, performedReps: event.target.value },
+                            }))
+                          }
+                          placeholder={exercise.target.reps}
                         />
                       </label>
                       <label>

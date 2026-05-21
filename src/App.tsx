@@ -139,7 +139,13 @@ export default function App() {
   async function handleSaveLog(
     session: SessionDefinition,
     exercise: ExerciseDefinition,
-    draft: { performedSets: string; effort: number; notes: string },
+    draft: {
+      performedWeight: string;
+      performedSetsCount: number;
+      performedReps: string;
+      effort: number;
+      notes: string;
+    },
   ) {
     if (!selectedProgram) {
       return;
@@ -148,7 +154,13 @@ export default function App() {
     await createExerciseLog(selectedProgram.id, {
       session_key: `${selectedProgram.id}:${session.dayLabel}:${session.title}`,
       exercise_name: exercise.name,
-      performed_sets: draft.performedSets,
+      target_sets: exercise.target.sets,
+      target_reps: exercise.target.reps,
+      target_weight: exercise.target.weight,
+      performed_weight: draft.performedWeight,
+      performed_sets_count: draft.performedSetsCount,
+      performed_reps: draft.performedReps,
+      performed_sets: `${draft.performedWeight} x ${draft.performedReps} across ${draft.performedSetsCount} sets`,
       effort: draft.effort,
       notes: draft.notes,
       completed_at: new Date().toISOString(),

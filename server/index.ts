@@ -15,6 +15,44 @@ const requestSchema = z.object({
   currentProgram: z.unknown().optional(),
 });
 
+const generatedProgramSchema = z.object({
+  name: z.string().min(1),
+  goal: z.string().min(1),
+  experienceLevel: z.enum(["easy", "moderate", "hard"]),
+  daysPerWeek: z.number().min(2).max(6),
+  summary: z.string(),
+  progression_notes: z.array(z.string()),
+  overload_scheme: z.array(z.string()),
+  weeks: z.array(
+    z.object({
+      label: z.string(),
+      objective: z.string(),
+      sessions: z.array(
+        z.object({
+          title: z.string(),
+          dayLabel: z.string(),
+          focus: z.string(),
+          notes: z.string().optional().default(""),
+          exercises: z.array(
+            z.object({
+              name: z.string(),
+              category: z.string(),
+              target: z.object({
+                sets: z.number(),
+                reps: z.string(),
+                weight: z.string(),
+                restSeconds: z.number(),
+                intensity: z.string().optional(),
+                notes: z.string().optional(),
+              }),
+            }),
+          ),
+        }),
+      ),
+    }),
+  ),
+});
+
 app.get("/api/health", (_request, response) => {
   response.json({ ok: true });
 });
@@ -65,6 +103,7 @@ app.post("/api/programs/generate", async (request, response) => {
 
   const payload = parsed.data;
   const mode = payload.currentProgram ? "edit" : "create";
+  const startedAt = Date.now();
 
   const systemPrompt = `
 You are a veteran strength coach building a concrete lifting program.
@@ -80,6 +119,7 @@ Required JSON shape:
   "daysPerWeek": number,
   "summary": string,
   "progression_notes": string[],
+  "overload_scheme": string[],
   "weeks": [
     {
       "label": string,
@@ -95,11 +135,12 @@ Required JSON shape:
               "name": string,
               "category": string,
               "target": {
-                "sets": number,
-                "reps": string,
-                "restSeconds": number,
-                "intensity": string,
-                "notes": string
+              "sets": number,
+              "reps": string,
+              "weight": string,
+              "restSeconds": number,
+              "intensity": string,
+              "notes": string
               }
             }
           ]
@@ -114,7 +155,10 @@ Constraints:
 - Infer the weekly frequency from the user's prompt and set daysPerWeek to match the number of sessions per week.
 - Keep daysPerWeek between 2 and 6.
 - Programs are for humans logging workouts later without AI assistance, so progression must be explicit and deterministic.
-- Favor concise, realistic exercises and set/rep prescriptions.
+- Every exercise must include explicit target sets, target reps, and target weight.
+- Include a concrete overload_scheme array that explains when to add reps, when to add weight, and how to deload.
+- If the user does not provide exact loads, estimate a reasonable starting weight and indicate that it is a starting estimate.
+- Favor concise, realistic exercises and set/rep/weight prescriptions.
 - Respect the user's prompt exactly, including equipment, session length, injuries, available days, and preferred style.
 - Keep the tone practical, not motivational.
 `.trim();
@@ -132,12 +176,22 @@ ${
 `.trim();
 
   try {
+    console.log(
+      `[generate] start mode=${mode} prompt_chars=${payload.prompt.length}`,
+    );
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45000);
+
     const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${openRouterApiKey}`,
         "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost:5173",
+        "X-Title": "IRON",
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model: openRouterModel,
         messages: [
@@ -149,9 +203,11 @@ ${
         },
       }),
     });
+    clearTimeout(timeout);
 
     if (!completion.ok) {
       const details = await completion.text();
+      console.error(`[generate] openrouter_error status=${completion.status}`);
       response.status(502).json({
         error: "OpenRouter request failed.",
         details,
@@ -171,12 +227,28 @@ ${
       return;
     }
 
+    const generated = generatedProgramSchema.parse(JSON.parse(content));
+    console.log(`[generate] success ms=${Date.now() - startedAt}`);
+
     response.json({
-      structure: JSON.parse(content),
+      name: generated.name,
+      goal: generated.goal,
+      experienceLevel: generated.experienceLevel,
+      daysPerWeek: generated.daysPerWeek,
+      structure: {
+        summary: generated.summary,
+        progression_notes: generated.progression_notes,
+        overload_scheme: generated.overload_scheme,
+        weeks: generated.weeks,
+      },
     });
   } catch (error) {
+    console.error("[generate] failure", error);
     response.status(500).json({
-      error: "Program generation failed.",
+      error:
+        error instanceof Error && error.name === "AbortError"
+          ? "Program generation timed out after 45 seconds."
+          : "Program generation failed.",
       details: error instanceof Error ? error.message : "Unknown server error.",
     });
   }

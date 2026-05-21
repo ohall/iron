@@ -5,6 +5,7 @@ export type Difficulty = "easy" | "moderate" | "hard";
 export interface ExerciseTarget {
   sets: number;
   reps: string;
+  weight: string;
   restSeconds: number;
   intensity?: string;
   notes?: string;
@@ -33,6 +34,7 @@ export interface WeekDefinition {
 export interface ProgramStructure {
   summary: string;
   progression_notes: string[];
+  overload_scheme: string[];
   weeks: WeekDefinition[];
 }
 
@@ -53,6 +55,12 @@ export interface ExerciseLog {
   id: string;
   session_key: string;
   exercise_name: string;
+  target_sets: number;
+  target_reps: string;
+  target_weight: string;
+  performed_weight: string;
+  performed_sets_count: number;
+  performed_reps: string;
   performed_sets: string;
   effort: number;
   notes: string;

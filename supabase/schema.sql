@@ -18,14 +18,31 @@ create table if not exists exercise_logs (
   program_id uuid not null references programs(id) on delete cascade,
   session_key text not null,
   exercise_name text not null,
+  target_sets integer not null default 0,
+  target_reps text not null default '',
+  target_weight text not null default '',
+  performed_weight text not null default '',
+  performed_sets_count integer not null default 0,
+  performed_reps text not null default '',
   performed_sets text not null,
   effort integer not null check (effort between 1 and 10),
   notes text not null default '',
   completed_at timestamptz not null default timezone('utc', now())
 );
 
+alter table exercise_logs add column if not exists target_sets integer not null default 0;
+alter table exercise_logs add column if not exists target_reps text not null default '';
+alter table exercise_logs add column if not exists target_weight text not null default '';
+alter table exercise_logs add column if not exists performed_weight text not null default '';
+alter table exercise_logs add column if not exists performed_sets_count integer not null default 0;
+alter table exercise_logs add column if not exists performed_reps text not null default '';
+
 alter table programs disable row level security;
 alter table exercise_logs disable row level security;
+
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on table programs to anon, authenticated;
+grant select, insert, update, delete on table exercise_logs to anon, authenticated;
 
 create index if not exists exercise_logs_program_id_completed_at_idx
   on exercise_logs(program_id, completed_at desc);

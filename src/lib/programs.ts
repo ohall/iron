@@ -12,6 +12,7 @@ export class MissingSchemaError extends Error {
 const targetSchema = z.object({
   sets: z.number(),
   reps: z.string(),
+  weight: z.string().optional().default("starting estimate"),
   restSeconds: z.number(),
   intensity: z.string().optional(),
   notes: z.string().optional(),
@@ -31,9 +32,10 @@ const sessionSchema = z.object({
   exercises: z.array(exerciseSchema),
 });
 
-const structureSchema: z.ZodType<ProgramStructure> = z.object({
+const structureSchema = z.object({
   summary: z.string(),
   progression_notes: z.array(z.string()),
+  overload_scheme: z.array(z.string()).optional().default([]),
   weeks: z.array(
     z.object({
       label: z.string(),

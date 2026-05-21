@@ -10,7 +10,10 @@ export async function generateProgram(request: AiProgramRequest) {
   });
 
   if (!response.ok) {
-    throw new Error("Program generation failed.");
+    const payload = (await response.json().catch(() => null)) as
+      | { error?: string; details?: string }
+      | null;
+    throw new Error(payload?.error ?? "Program generation failed.");
   }
 
   return (await response.json()) as GeneratedProgramPayload;
